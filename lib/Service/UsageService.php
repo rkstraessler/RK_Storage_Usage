@@ -25,7 +25,6 @@ final class UsageService
         ICacheFactory $cacheFactory,
         private readonly LoggerInterface $logger,
     ) {
-        // Verwendet bei deiner Installation APCu (memcache.local).
         $this->cache = $cacheFactory->createLocal('storageusage');
     }
 
@@ -54,15 +53,12 @@ final class UsageService
 
     private function calculateTotalUsage(): int
     {
-        /** @var array<string, IUser> $users */
         $users = [];
 
-        // Bekannte Benutzer, die Nextcloud bereits gesehen hat.
         foreach ($this->userManager->getSeenUsers() as $user) {
             $users[$user->getUID()] = $user;
         }
 
-        // Deaktivierte Benutzer können weiterhin Dateien belegen.
         try {
             foreach ($this->userManager->getDisabledUsers() as $user) {
                 $users[$user->getUID()] = $user;
@@ -86,8 +82,6 @@ final class UsageService
     private function getUserUsage(IUser $user): int
     {
         try {
-            // getSize(false) liest die von Nextcloud gepflegte Dateicache-Größe.
-            // Es findet kein rekursiver Festplatten-Scan statt.
             $usage = $this->rootFolder
                 ->getUserFolder($user->getUID())
                 ->getSize(false);

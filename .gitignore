@@ -1,0 +1,12 @@
+# Nextcloud signing secrets
+*.key
+*.csr
+*.crt
+
+# Generated release archives
+*.tar.gz
+*.zip
+
+# Local development files
+.idea/
+.vscode/

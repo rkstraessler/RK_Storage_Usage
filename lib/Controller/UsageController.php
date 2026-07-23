@@ -21,16 +21,12 @@ final class UsageController extends Controller
         parent::__construct($appName, $request);
     }
 
-    #[PublicPage]
-    #[NoCSRFRequired]
     public function get(): JSONResponse
     {
         $response = new JSONResponse([
             'totalUsage' => $this->usageService->getTotalUsage(),
         ]);
 
-        // Der Server cached intern 60 Sekunden.
-        // Der Client soll nicht zusätzlich cachen, damit der Wert maximal 60 Sekunden alt ist.
         $response->addHeader('Cache-Control', 'no-store');
         $response->addHeader('X-Content-Type-Options', 'nosniff');
 
