@@ -21,6 +21,8 @@ final class UsageController extends Controller
         parent::__construct($appName, $request);
     }
 
+    #[PublicPage]
+    #[NoCSRFRequired]
     public function get(): JSONResponse
     {
         $response = new JSONResponse([
