@@ -6,6 +6,7 @@
 # Generated release archives
 *.tar.gz
 *.zip
+*.signature
 
 # Local development files
 .idea/

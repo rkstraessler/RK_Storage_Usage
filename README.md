@@ -20,11 +20,31 @@ Beispiel:
 
 ```json
 {
-    "totalUsage": 3596755985
+    "totalUsage": 3.35,
+    "unit": "GiB",
+    "totalUsageBytes": 3596755985,
+    "cacheTtl": 60
 }
 ```
 
-`totalUsage` wird in Bytes ausgegeben.
+Die Ausgabeeinheit für `totalUsage` kann im Nextcloud-Adminbereich eingestellt
+werden. `totalUsageBytes` enthält unabhängig davon immer den exakten Wert in
+Bytes.
+
+## Einstellungen
+
+Administratoren finden die grafische Konfiguration unter:
+
+```text
+Administrationseinstellungen → Storage Usage API
+```
+
+Verfügbare Ausgabeeinheiten sind `Auto`, `B`, `kB`, `KiB`, `MB`, `MiB`, `GB`,
+`GiB`, `TB` und `TiB`. Die dezimalen SI-Einheiten verwenden den Faktor 1000,
+die binären IEC-Einheiten den Faktor 1024. `Auto` wählt abhängig von der Größe
+automatisch `B`, `KiB`, `MiB`, `GiB` oder `TiB`.
+Die Cache-Zeit kann auf 0, 30, 60, 300, 900 oder 3600 Sekunden gesetzt werden.
+Bei 0 wird der Wert für jede Anfrage neu berechnet.
 
 ## Datenschutz und Sicherheit
 
@@ -39,10 +59,10 @@ Webserver schützen.
 ## Cache
 
 - Interner Nextcloud-Local-Cache
-- TTL: 60 Sekunden
+- Einstellbare TTL: 0 bis 3600 Sekunden
 - Bei konfiguriertem `memcache.local` wird beispielsweise APCu verwendet
 - Der erste Request nach Ablauf berechnet den Wert neu
-- Weitere Requests innerhalb von 60 Sekunden lesen nur den Cache
+- Weitere Requests innerhalb der eingestellten Cache-Zeit lesen nur den Cache
 - Es wird kein rekursiver Festplatten-Scan ausgeführt
 
 ## Manuelle Installation
@@ -65,6 +85,10 @@ Repository oder in ein Release-Archiv gelangen. Der vollständige offizielle
 Ablauf ist in der
 [Nextcloud App Store documentation](https://nextcloudappstore.readthedocs.io/en/latest/developer.html)
 beschrieben.
+
+Das vollständige REIKEM-Logo ist als App-Store-Vorschau hinterlegt. Für
+Nextclouds App-Symbol wird das eigenständige Vektor-`R` aus `img/app.svg`
+verwendet.
 
 ## Lizenz
 
