@@ -1,10 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg"
-     xmlns:xlink="http://www.w3.org/1999/xlink"
-     viewBox="0 0 447 447">
-  <image width="447"
-         height="447"
-         preserveAspectRatio="xMidYMid meet"
-         href="logo.png"
-         xlink:href="logo.png"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <path d="M72 64h266c70 0 112 40 112 103 0 42-21 72-54 88 35 16 54 48 54 94v99h-78v-94c0-40-18-58-59-58H150v152H72V64zm78 72v91h177c29 0 45-16 45-46 0-29-16-45-45-45H150z"/>
+  <path d="M35 91h24v8H35zm14-18h42v7H49zm389 345h39v8h-39zm-18 17h57v7h-57z"/>
 </svg>
