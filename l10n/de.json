@@ -1,0 +1,13 @@
+{
+    "translations": {
+        "Storage Usage API": "Storage Usage API",
+        "Choose how the public API formats total storage usage and how long calculated values are cached.": "Lege fest, wie die öffentliche API den gesamten Speicherverbrauch formatiert und wie lange berechnete Werte zwischengespeichert werden.",
+        "Output unit": "Ausgabeeinheit",
+        "The selected unit is used for totalUsage. Auto chooses B, KiB, MiB, GiB, or TiB based on the size. The exact byte value remains available as totalUsageBytes.": "Die gewählte Einheit wird für totalUsage verwendet. Auto wählt abhängig von der Größe B, KiB, MiB, GiB oder TiB. Der exakte Byte-Wert bleibt als totalUsageBytes verfügbar.",
+        "Select an output unit": "Ausgabeeinheit auswählen",
+        "Cache time in seconds": "Cache-Zeit in Sekunden",
+        "Use 0 to recalculate the total for every request.": "Mit 0 wird die Gesamtsumme bei jeder Anfrage neu berechnet.",
+        "Select a cache time": "Cache-Zeit auswählen"
+    },
+    "pluralForm": "nplurals=2; plural=(n != 1);"
+}

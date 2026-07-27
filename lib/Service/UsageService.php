@@ -14,8 +14,7 @@ use Throwable;
 
 final class UsageService
 {
-    private const CACHE_KEY = 'total-usage-bytes-v1';
-    private const CACHE_TTL_SECONDS = 60;
+    private const CACHE_KEY_PREFIX = 'total-usage-bytes-v2';
 
     private readonly ICache $cache;
 
@@ -24,13 +23,21 @@ final class UsageService
         private readonly IRootFolder $rootFolder,
         ICacheFactory $cacheFactory,
         private readonly LoggerInterface $logger,
+        private readonly SettingsService $settingsService,
     ) {
         $this->cache = $cacheFactory->createLocal('storageusage');
     }
 
     public function getTotalUsage(): int
     {
-        $cachedUsage = $this->cache->get(self::CACHE_KEY);
+        $cacheTtl = $this->settingsService->getCacheTtl();
+
+        if ($cacheTtl === 0) {
+            return $this->calculateTotalUsage();
+        }
+
+        $cacheKey = self::CACHE_KEY_PREFIX . '-' . $cacheTtl;
+        $cachedUsage = $this->cache->get($cacheKey);
 
         if (is_int($cachedUsage)) {
             return $cachedUsage;
@@ -43,9 +50,9 @@ final class UsageService
         $totalUsage = $this->calculateTotalUsage();
 
         $this->cache->set(
-            self::CACHE_KEY,
+            $cacheKey,
             $totalUsage,
-            self::CACHE_TTL_SECONDS,
+            $cacheTtl,
         );
 
         return $totalUsage;

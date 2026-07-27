@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\StorageUsage\Controller;
 
 use OCA\StorageUsage\Service\UsageService;
+use OCA\StorageUsage\Service\SettingsService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
@@ -17,6 +18,7 @@ final class UsageController extends Controller
         string $appName,
         IRequest $request,
         private readonly UsageService $usageService,
+        private readonly SettingsService $settingsService,
     ) {
         parent::__construct($appName, $request);
     }
@@ -25,8 +27,14 @@ final class UsageController extends Controller
     #[NoCSRFRequired]
     public function get(): JSONResponse
     {
+        $totalUsageBytes = $this->usageService->getTotalUsage();
+        $formattedUsage = $this->settingsService->formatBytes($totalUsageBytes);
+
         $response = new JSONResponse([
-            'totalUsage' => $this->usageService->getTotalUsage(),
+            'totalUsage' => $formattedUsage['value'],
+            'unit' => $formattedUsage['unit'],
+            'totalUsageBytes' => $totalUsageBytes,
+            'cacheTtl' => $this->settingsService->getCacheTtl(),
         ]);
 
         $response->addHeader('Cache-Control', 'no-store');
