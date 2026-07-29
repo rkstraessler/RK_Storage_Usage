@@ -196,15 +196,30 @@ docker exec --user www-data "${container_name}" php -r '
 
 response=''
 for attempt in {1..30}; do
-	if response="$(docker exec "${container_name}" curl \
+	candidate_response=''
+	if candidate_response="$(docker exec "${container_name}" curl \
 		--fail \
 		--silent \
 		--show-error \
 		http://localhost/index.php/apps/storageusage/api/v1/usage 2>/dev/null)"; then
-		break
+		response="${candidate_response}"
+		if printf '%s' "${candidate_response}" \
+			| docker exec --interactive "${container_name}" php -r '
+				$data = json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR);
+				exit(isset(
+					$data["folders"]["included"],
+					$data["folders"]["excluded"],
+					$data["folders"]["shared"],
+				) ? 0 : 1);
+			'; then
+			break
+		fi
 	fi
 	if [[ "${attempt}" == "30" ]]; then
-		echo "The public storage usage endpoint did not become available." >&2
+		echo "The public endpoint did not expose the configured smoke-test folders in time." >&2
+		if [[ -n "${response}" ]]; then
+			printf 'Last response: %s\n' "${response}" >&2
+		fi
 		exit 1
 	fi
 	sleep 1
@@ -242,7 +257,16 @@ printf '%s' "${response}" \
 		if ($data["excludedUsageBytes"] !== 24576
 			|| $data["baseTotalUsageBytes"] < 28672
 			|| $data["totalUsageBytes"] !== $data["baseTotalUsageBytes"] - 24576) {
-			fwrite(STDERR, "Unexpected folder exclusion calculation\n");
+			fwrite(
+				STDERR,
+				sprintf(
+					"Unexpected folder exclusion calculation: base=%d excluded=%d total=%d response=%s\n",
+					$data["baseTotalUsageBytes"],
+					$data["excludedUsageBytes"],
+					$data["totalUsageBytes"],
+					$raw,
+				),
+			);
 			exit(1);
 		}
 
