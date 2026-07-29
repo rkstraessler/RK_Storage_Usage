@@ -1,0 +1,527 @@
+name: Build, sign and publish release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semantic version without a leading v, for example 2.0.0
+        required: true
+        type: string
+      publish_appstore:
+        description: Publish stable releases to the Nextcloud App Store
+        required: true
+        default: true
+        type: boolean
+
+run-name: Release v${{ inputs.version }}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: storageusage-release
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    name: Build and publish v${{ inputs.version }}
+    runs-on: ubuntu-24.04
+    environment: release
+    timeout-minutes: 30
+    env:
+      APP_ID: storageusage
+      VERSION: ${{ inputs.version }}
+      TAG: v${{ inputs.version }}
+      # Official nextcloud:34.0.2-apache image pinned to an immutable digest.
+      NEXTCLOUD_IMAGE: nextcloud:34.0.2-apache@sha256:e93ccfc952c95f18175f3d297fb2f60c35070c05ca976050c250a9ddab793e75
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+
+    steps:
+      - name: Check out the default branch
+        # actions/checkout v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Initialize temporary paths
+        run: |
+          {
+            echo "STAGE_ROOT=${RUNNER_TEMP}/storageusage-stage"
+            echo "OUTPUT_DIRECTORY=${RUNNER_TEMP}/storageusage-release"
+            echo "CERTIFICATE_DIRECTORY=${RUNNER_TEMP}/storageusage-certificates"
+          } >> "${GITHUB_ENV}"
+
+      - name: Validate release request and secrets
+        env:
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+          APP_PUBLIC_CRT: ${{ secrets.APP_PUBLIC_CRT }}
+          APPSTORE_TOKEN: ${{ secrets.APPSTORE_TOKEN }}
+          PUBLISH_APPSTORE: ${{ inputs.publish_appstore }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ "${GITHUB_REF_NAME}" != "${DEFAULT_BRANCH}" ]]; then
+            echo "Run this workflow from the ${DEFAULT_BRANCH} branch, not ${GITHUB_REF_NAME}." >&2
+            exit 1
+          fi
+          php scripts/set-version.php --validate "${VERSION}"
+          if [[ -z "${APP_PRIVATE_KEY}" || -z "${APP_PUBLIC_CRT}" ]]; then
+            echo "APP_PRIVATE_KEY and APP_PUBLIC_CRT must exist in the release environment." >&2
+            exit 1
+          fi
+          if [[ "${PUBLISH_APPSTORE}" == "true" && "${VERSION}" != *-* && -z "${APPSTORE_TOKEN}" ]]; then
+            echo "APPSTORE_TOKEN is required when automatic App Store publishing is enabled." >&2
+            exit 1
+          fi
+
+      - name: Prepare the release commit locally
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "The checked-out repository is not clean." >&2
+            exit 1
+          fi
+
+          remote_tag_exists=false
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            remote_tag_exists=true
+          fi
+
+          if [[ "${remote_tag_exists}" == "true" ]]; then
+            git fetch --force origin \
+              "refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}"
+            git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
+            tagged_commit="$(git rev-parse "${TAG}^{commit}")"
+            if ! git merge-base --is-ancestor \
+              "${tagged_commit}" \
+              "refs/remotes/origin/${DEFAULT_BRANCH}"; then
+              echo "Tag ${TAG} is not reachable from the trusted ${DEFAULT_BRANCH} branch." >&2
+              exit 1
+            fi
+            git checkout --detach "${TAG}"
+            # shellcheck disable=SC2016
+            tagged_version="$(php -r '$xml = simplexml_load_file("appinfo/info.xml"); echo trim((string) $xml->version);')"
+            if [[ "${tagged_version}" != "${VERSION}" ]]; then
+              echo "Tag ${TAG} contains app version ${tagged_version}, not ${VERSION}." >&2
+              exit 1
+            fi
+          else
+            # shellcheck disable=SC2016
+            current_version="$(php -r '$xml = simplexml_load_file("appinfo/info.xml"); echo trim((string) $xml->version);')"
+            if [[ "${current_version}" != "${VERSION}" ]]; then
+              # shellcheck disable=SC2016
+              if ! php -r 'exit(version_compare($argv[1], $argv[2], ">") ? 0 : 1);' "${VERSION}" "${current_version}"; then
+                echo "Requested version ${VERSION} must be newer than ${current_version}." >&2
+                exit 1
+              fi
+              php scripts/set-version.php "${VERSION}"
+            fi
+
+            if gh release view "${TAG}" >/dev/null 2>&1; then
+              echo "Release ${TAG} exists without a matching remote tag." >&2
+              exit 1
+            fi
+            bash scripts/prepend-changelog.sh "${VERSION}"
+
+            if [[ -n "$(git status --porcelain)" ]]; then
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git add appinfo/info.xml CHANGELOG.md
+              git commit -m "chore(release): prepare ${TAG}"
+            fi
+          fi
+
+          release_sha="$(git rev-parse HEAD)"
+          source_date_epoch="$(git show -s --format=%ct HEAD)"
+          {
+            echo "release_sha=${release_sha}"
+            echo "source_date_epoch=${source_date_epoch}"
+            echo "tag_existed=${remote_tag_exists}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Run the release quality gate
+        run: bash scripts/validate-source.sh
+
+      - name: Materialize and validate signing credentials
+        env:
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+          APP_PUBLIC_CRT: ${{ secrets.APP_PUBLIC_CRT }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          mkdir -p "${CERTIFICATE_DIRECTORY}"
+          printf '%s' "${APP_PRIVATE_KEY}" > "${CERTIFICATE_DIRECTORY}/${APP_ID}.key"
+          printf '%s' "${APP_PUBLIC_CRT}" > "${CERTIFICATE_DIRECTORY}/${APP_ID}.crt"
+
+          openssl pkey \
+            -in "${CERTIFICATE_DIRECTORY}/${APP_ID}.key" \
+            -pubout \
+            -out "${CERTIFICATE_DIRECTORY}/private-public.pem"
+          openssl x509 \
+            -in "${CERTIFICATE_DIRECTORY}/${APP_ID}.crt" \
+            -pubkey \
+            -noout \
+            -out "${CERTIFICATE_DIRECTORY}/certificate-public.pem"
+
+          if ! cmp -s \
+            "${CERTIFICATE_DIRECTORY}/private-public.pem" \
+            "${CERTIFICATE_DIRECTORY}/certificate-public.pem"; then
+            echo "APP_PRIVATE_KEY does not match APP_PUBLIC_CRT." >&2
+            exit 1
+          fi
+
+          certificate_cn="$(openssl x509 -in "${CERTIFICATE_DIRECTORY}/${APP_ID}.crt" -noout -subject -nameopt RFC2253 | sed -n 's/^subject=CN=\([^,]*\).*$/\1/p')"
+          if [[ "${certificate_cn}" != "${APP_ID}" ]]; then
+            echo "Certificate CN must be ${APP_ID}, found ${certificate_cn:-unknown}." >&2
+            exit 1
+          fi
+
+      - name: Stage application files
+        run: |
+          set -Eeuo pipefail
+          bash scripts/package-release.sh stage "${VERSION}" "${STAGE_ROOT}"
+
+      - name: Create Nextcloud integrity signature
+        run: |
+          set -Eeuo pipefail
+          container_name="storageusage-signer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          unsigned_manifest="${RUNNER_TEMP}/storageusage-unsigned-tree.sha256"
+          signed_manifest="${RUNNER_TEMP}/storageusage-signed-tree.sha256"
+          cleanup_signer() {
+            docker rm -f "${container_name}" >/dev/null 2>&1 || true
+          }
+          hash_unsigned_tree() {
+            tar \
+              --sort=name \
+              --format=posix \
+              --owner=0 \
+              --group=0 \
+              --numeric-owner \
+              --mtime=@0 \
+              --pax-option=delete=atime,delete=ctime \
+              --exclude="${APP_ID}/appinfo/signature.json" \
+              -C "${STAGE_ROOT}" \
+              -cf - "${APP_ID}" \
+              | sha256sum \
+              | cut -d ' ' -f1
+          }
+          trap cleanup_signer EXIT
+
+          hash_unsigned_tree > "${unsigned_manifest}"
+
+          docker run --detach \
+            --name "${container_name}" \
+            --network none \
+            --volume "${STAGE_ROOT}:/release" \
+            --volume "${CERTIFICATE_DIRECTORY}:/certificates:ro" \
+            "${NEXTCLOUD_IMAGE}"
+
+          for attempt in {1..60}; do
+            if docker exec --user www-data "${container_name}" php occ --version >/dev/null 2>&1; then
+              break
+            fi
+            if [[ "${attempt}" == "60" ]]; then
+              echo "Nextcloud did not finish initializing in time." >&2
+              exit 1
+            fi
+            sleep 1
+          done
+
+          docker exec "${container_name}" php occ integrity:sign-app \
+            --privateKey="/certificates/${APP_ID}.key" \
+            --certificate="/certificates/${APP_ID}.crt" \
+            --path="/release/${APP_ID}"
+          docker exec "${container_name}" chown -R "$(id -u):$(id -g)" /release
+          cleanup_signer
+          trap - EXIT
+
+          hash_unsigned_tree > "${signed_manifest}"
+          if ! cmp -s "${unsigned_manifest}" "${signed_manifest}"; then
+            echo "The signer changed app files other than appinfo/signature.json." >&2
+            exit 1
+          fi
+
+          php scripts/validate-integrity-signature.php \
+            "${STAGE_ROOT}/${APP_ID}/appinfo/signature.json" \
+            "${CERTIFICATE_DIRECTORY}/${APP_ID}.crt" \
+            "${STAGE_ROOT}/${APP_ID}"
+
+      - name: Smoke-test the signed app in Nextcloud 34
+        run: |
+          bash scripts/smoke-test-nextcloud.sh \
+            "${STAGE_ROOT}/${APP_ID}" \
+            "${NEXTCLOUD_IMAGE}" \
+            true
+
+      - name: Build deterministic release archives
+        run: |
+          set -Eeuo pipefail
+          bash scripts/package-release.sh package \
+            "${VERSION}" \
+            "${STAGE_ROOT}" \
+            "${OUTPUT_DIRECTORY}" \
+            "${{ steps.prepare.outputs.source_date_epoch }}"
+
+      - name: Sign and verify the App Store archive
+        run: |
+          set -Eeuo pipefail
+          archive_base="${APP_ID}-v${VERSION}"
+          tar_archive="${OUTPUT_DIRECTORY}/${archive_base}.tar.gz"
+          zip_archive="${OUTPUT_DIRECTORY}/${archive_base}.zip"
+          signature_file="${OUTPUT_DIRECTORY}/${archive_base}.signature"
+          binary_signature="${RUNNER_TEMP}/${archive_base}.signature.bin"
+
+          openssl dgst -sha512 \
+            -sign "${CERTIFICATE_DIRECTORY}/${APP_ID}.key" \
+            -out "${binary_signature}" \
+            "${tar_archive}"
+          openssl base64 -A \
+            -in "${binary_signature}" \
+            -out "${signature_file}"
+          openssl dgst -sha512 \
+            -verify "${CERTIFICATE_DIRECTORY}/certificate-public.pem" \
+            -signature "${binary_signature}" \
+            "${tar_archive}"
+
+          (
+            cd "${OUTPUT_DIRECTORY}"
+            sha256sum \
+              "$(basename "${tar_archive}")" \
+              "$(basename "${zip_archive}")" \
+              "$(basename "${signature_file}")" \
+              > "${archive_base}.sha256"
+          )
+
+      - name: Verify or push the release commit and tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          credential_file="${RUNNER_TEMP}/storageusage-git-credentials"
+          cleanup_git_credentials() {
+            rm -f "${credential_file}"
+            git config --local --unset credential.helper >/dev/null 2>&1 || true
+          }
+          trap cleanup_git_credentials EXIT
+          umask 077
+          printf 'https://x-access-token:%s@github.com\n' "${GH_TOKEN}" > "${credential_file}"
+          git config --local credential.helper "store --file=${credential_file}"
+
+          # shellcheck disable=SC2016
+          current_info_version="$(php -r '$xml = simplexml_load_file("appinfo/info.xml"); echo trim((string) $xml->version);')"
+
+          if [[ "${current_info_version}" != "${VERSION}" ]]; then
+            echo "Local release commit no longer contains ${VERSION}." >&2
+            exit 1
+          fi
+
+          if [[ "${{ steps.prepare.outputs.tag_existed }}" == "true" ]]; then
+            git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
+            tagged_sha="$(git rev-list -n 1 "${TAG}")"
+            if [[ "${tagged_sha}" != "$(git rev-parse HEAD)" ]]; then
+              echo "Existing tag ${TAG} points to ${tagged_sha}, not $(git rev-parse HEAD)." >&2
+              exit 1
+            fi
+          else
+            remote_default_sha="$(git ls-remote origin "refs/heads/${DEFAULT_BRANCH}" | cut -f1)"
+            local_parent_sha="$(git rev-parse HEAD^ 2>/dev/null || git rev-parse HEAD)"
+            if [[ "$(git rev-parse HEAD)" != "${remote_default_sha}" ]]; then
+              if [[ "${local_parent_sha}" != "${remote_default_sha}" ]]; then
+                echo "The default branch changed while the release was being built. Rerun the workflow." >&2
+                exit 1
+              fi
+              git push origin "HEAD:${DEFAULT_BRANCH}"
+            fi
+
+            if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+              git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
+              tagged_sha="$(git rev-list -n 1 "${TAG}")"
+              if [[ "${tagged_sha}" != "$(git rev-parse HEAD)" ]]; then
+                echo "Tag ${TAG} was created concurrently for a different commit." >&2
+                exit 1
+              fi
+            else
+              git tag -a "${TAG}" -m "Storage Usage API ${TAG}"
+              git push origin "refs/tags/${TAG}"
+            fi
+          fi
+
+          remote_tag_sha="$(git ls-remote origin "refs/tags/${TAG}^{}" | cut -f1)"
+          if [[ -z "${remote_tag_sha}" ]]; then
+            remote_tag_sha="$(git ls-remote origin "refs/tags/${TAG}" | cut -f1)"
+          fi
+          if [[ "${remote_tag_sha}" != "$(git rev-parse HEAD)" ]]; then
+            echo "Remote tag ${TAG} does not resolve to the built commit." >&2
+            exit 1
+          fi
+
+      - name: Create or verify GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          archive_base="${APP_ID}-v${VERSION}"
+          banner_url="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${TAG}/.github/assets/release-banners/new-release-banner.png"
+          previous_tag="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
+          range="${previous_tag:+${previous_tag}..}${TAG}"
+
+          notes_file="${RUNNER_TEMP}/storageusage-release-notes.md"
+          {
+            if [[ "${VERSION}" != *-* ]]; then
+              printf '![REIKEM Stable Release](%s)\n\n' "${banner_url}"
+            else
+              printf '> Vorabversion: Diese Version ist noch kein stabiler Release.\n\n'
+            fi
+            printf '## Storage Usage API %s\n\n' "${TAG}"
+            printf 'Dieses Release wurde automatisch gebaut, mit dem offiziellen Nextcloud-App-Zertifikat signiert und reproduzierbar verpackt.\n\n'
+            printf '### Enthaltene Änderungen\n\n'
+            # Backticks are intentional Markdown, not shell command substitution.
+            # shellcheck disable=SC2016
+            git log --no-merges --pretty='- %s (`%h`)' "${range}" \
+              | grep -v -- '- chore(release): prepare' \
+              || printf '%s\n' '- Keine zusätzlichen Commits seit dem vorherigen Release.'
+          } > "${notes_file}"
+
+          prerelease_arguments=()
+          if [[ "${VERSION}" == *-* ]]; then
+            prerelease_arguments+=(--prerelease --latest=false)
+          else
+            prerelease_arguments+=(--latest)
+          fi
+
+          if ! gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release create "${TAG}" \
+              "${OUTPUT_DIRECTORY}/${archive_base}.tar.gz#Signed Nextcloud App Store archive" \
+              "${OUTPUT_DIRECTORY}/${archive_base}.zip#Signed ZIP archive" \
+              "${OUTPUT_DIRECTORY}/${archive_base}.signature#Nextcloud App Store signature" \
+              "${OUTPUT_DIRECTORY}/${archive_base}.sha256#SHA-256 checksums" \
+              --draft \
+              --verify-tag \
+              --title "Storage Usage API ${TAG}" \
+              --generate-notes \
+              --notes "$(cat "${notes_file}")" \
+              "${prerelease_arguments[@]}"
+            gh release edit "${TAG}" --draft=false
+          else
+            release_is_draft="$(gh release view "${TAG}" --json isDraft --jq .isDraft)"
+            if [[ "${release_is_draft}" == "true" ]]; then
+              gh release upload "${TAG}" \
+                "${OUTPUT_DIRECTORY}/${archive_base}.tar.gz#Signed Nextcloud App Store archive" \
+                "${OUTPUT_DIRECTORY}/${archive_base}.zip#Signed ZIP archive" \
+                "${OUTPUT_DIRECTORY}/${archive_base}.signature#Nextcloud App Store signature" \
+                "${OUTPUT_DIRECTORY}/${archive_base}.sha256#SHA-256 checksums" \
+                --clobber
+              gh release edit "${TAG}" \
+                --title "Storage Usage API ${TAG}" \
+                "${prerelease_arguments[@]}"
+              gh release edit "${TAG}" --draft=false
+            else
+              existing_directory="${RUNNER_TEMP}/storageusage-existing-release"
+              mkdir -p "${existing_directory}"
+              gh release download "${TAG}" \
+                --dir "${existing_directory}" \
+                --pattern "${archive_base}.*"
+              for artifact in "${OUTPUT_DIRECTORY}/${archive_base}.tar.gz" \
+                "${OUTPUT_DIRECTORY}/${archive_base}.zip" \
+                "${OUTPUT_DIRECTORY}/${archive_base}.signature" \
+                "${OUTPUT_DIRECTORY}/${archive_base}.sha256"; do
+                if ! cmp -s "${artifact}" "${existing_directory}/$(basename "${artifact}")"; then
+                  echo "Published release asset $(basename "${artifact}") differs from this build." >&2
+                  exit 1
+                fi
+              done
+            fi
+          fi
+
+      - name: Wait for the GitHub archive
+        if: ${{ inputs.publish_appstore && !contains(inputs.version, '-') }}
+        run: |
+          set -Eeuo pipefail
+          download_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${APP_ID}-v${VERSION}.tar.gz"
+          for attempt in {1..12}; do
+            if curl --fail --silent --show-error --location --head "${download_url}" >/dev/null; then
+              exit 0
+            fi
+            echo "Release asset is not available yet (attempt ${attempt}/12)."
+            sleep 5
+          done
+          echo "GitHub release asset did not become available." >&2
+          exit 1
+
+      - name: Publish stable release to the Nextcloud App Store
+        if: ${{ inputs.publish_appstore && !contains(inputs.version, '-') }}
+        env:
+          APPSTORE_TOKEN: ${{ secrets.APPSTORE_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          archive_base="${APP_ID}-v${VERSION}"
+          download_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${archive_base}.tar.gz"
+          payload_file="${RUNNER_TEMP}/storageusage-appstore-payload.json"
+          response_file="${RUNNER_TEMP}/storageusage-appstore-response.txt"
+
+          jq -n \
+            --arg download "${download_url}" \
+            --rawfile signature "${OUTPUT_DIRECTORY}/${archive_base}.signature" \
+            '{download: $download, signature: ($signature | gsub("\\s"; "")), nightly: false}' \
+            > "${payload_file}"
+
+          status_code="$(curl \
+            --silent \
+            --show-error \
+            --retry 3 \
+            --retry-all-errors \
+            --output "${response_file}" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Token ${APPSTORE_TOKEN}" \
+            --header 'Content-Type: application/json' \
+            --data-binary "@${payload_file}" \
+            https://apps.nextcloud.com/api/v1/apps/releases)"
+
+          if [[ "${status_code}" != "200" && "${status_code}" != "201" ]]; then
+            echo "Nextcloud App Store returned HTTP ${status_code}:" >&2
+            cat "${response_file}" >&2
+            exit 1
+          fi
+          echo "Nextcloud App Store accepted ${APP_ID} ${VERSION} (HTTP ${status_code})."
+
+      - name: Write release summary
+        if: success()
+        run: |
+          set -Eeuo pipefail
+          archive_base="${APP_ID}-v${VERSION}"
+          {
+            echo "## Storage Usage API ${TAG}"
+            echo
+            echo "- GitHub release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
+            echo "- App Store archive: \`${archive_base}.tar.gz\`"
+            echo "- Signed ZIP: \`${archive_base}.zip\`"
+            echo "- Detached App Store signature: \`${archive_base}.signature\`"
+            echo "- Checksums: \`${archive_base}.sha256\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Remove temporary credentials
+        if: always()
+        run: |
+          if [[ "${CERTIFICATE_DIRECTORY}" == "${RUNNER_TEMP}/storageusage-certificates" \
+            && -d "${CERTIFICATE_DIRECTORY}" ]]; then
+            find "${CERTIFICATE_DIRECTORY}" -type f -delete
+            rmdir "${CERTIFICATE_DIRECTORY}"
+          fi
+          rm -f \
+            "${RUNNER_TEMP}/storageusage-git-credentials" \
+            "${RUNNER_TEMP}/storageusage-appstore-payload.json" \
+            "${RUNNER_TEMP}/storageusage-appstore-response.txt" \
+            "${RUNNER_TEMP}/${APP_ID}-v${VERSION}.signature.bin" \
+            "${RUNNER_TEMP}/storageusage-unsigned-tree.sha256" \
+            "${RUNNER_TEMP}/storageusage-signed-tree.sha256"

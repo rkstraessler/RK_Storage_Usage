@@ -2,11 +2,17 @@
 *.key
 *.csr
 *.crt
+*.pem
+*.p12
+*.pfx
+*.der
 
 # Generated release archives
 *.tar.gz
 *.zip
 *.signature
+*.sha256
+appinfo/signature.json
 
 # Local development files
 .idea/

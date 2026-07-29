@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    name: Validate app and release package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        # actions/checkout v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate source, metadata and scripts
+        run: bash scripts/validate-source.sh
+
+      - name: Smoke-test package structure
+        run: |
+          set -Eeuo pipefail
+          # shellcheck disable=SC2016
+          version="$(php -r '$xml = simplexml_load_file("appinfo/info.xml"); echo trim((string) $xml->version);')"
+          stage_root="${RUNNER_TEMP}/storageusage-ci-stage"
+          output_directory="${RUNNER_TEMP}/storageusage-ci-output"
+
+          bash scripts/package-release.sh stage "${version}" "${stage_root}"
+          bash scripts/smoke-test-nextcloud.sh \
+            "${stage_root}/storageusage"
+          printf '%s\n' '{"hashes":{"/ci-placeholder":"ci"},"certificate":"ci","signature":"ci"}' \
+            > "${stage_root}/storageusage/appinfo/signature.json"
+          bash scripts/package-release.sh package \
+            "${version}" \
+            "${stage_root}" \
+            "${output_directory}" \
+            "$(git show -s --format=%ct HEAD)"
+
+          tar -tzf "${output_directory}/storageusage-v${version}.tar.gz" \
+            | grep -q '^storageusage/appinfo/info.xml$'
+          unzip -l "${output_directory}/storageusage-v${version}.zip" \
+            | grep -q 'storageusage/appinfo/info.xml'
