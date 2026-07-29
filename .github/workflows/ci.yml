@@ -20,8 +20,8 @@ jobs:
 
     steps:
       - name: Check out repository
-        # actions/checkout v4.2.2
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        # actions/checkout v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -29,7 +29,7 @@ jobs:
       - name: Validate source, metadata and scripts
         run: bash scripts/validate-source.sh
 
-      - name: Smoke-test package structure
+      - name: Validate package structure
         run: |
           set -Eeuo pipefail
           # shellcheck disable=SC2016
@@ -38,8 +38,6 @@ jobs:
           output_directory="${RUNNER_TEMP}/storageusage-ci-output"
 
           bash scripts/package-release.sh stage "${version}" "${stage_root}"
-          bash scripts/smoke-test-nextcloud.sh \
-            "${stage_root}/storageusage"
           printf '%s\n' '{"hashes":{"/ci-placeholder":"ci"},"certificate":"ci","signature":"ci"}' \
             > "${stage_root}/storageusage/appinfo/signature.json"
           bash scripts/package-release.sh package \

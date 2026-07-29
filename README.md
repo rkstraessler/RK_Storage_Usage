@@ -142,22 +142,26 @@ verwendet.
 
 ## Automatische Releases
 
-Der Workflow `Build, sign and publish release` übernimmt den vollständigen
-Release-Prozess. Unter GitHub muss lediglich unter `Actions` der Workflow
-ausgewählt, `Run workflow` angeklickt und eine neue Version ohne führendes `v`
-eingetragen werden, beispielsweise `2.0.0`.
+Der Workflow `Build, sign and publish release` startet automatisch, sobald ein
+GitHub-Release veröffentlicht wird. Der Tag ist dabei die verbindliche
+Versionsangabe: Ein Release mit dem Tag `v1.0.3` erzeugt die App-Version
+`1.0.3`. Ein vorhandener Release kann unter `Actions` mit seinem Tag manuell
+erneut gebaut werden.
 
 Der Workflow:
 
-1. prüft die SemVer-Version und erhöht sie in `appinfo/info.xml`,
-2. ergänzt das Changelog und erstellt den Versions-Commit sowie das Tag,
+1. prüft Release, SemVer-Tag und Zugehörigkeit zu `main`,
+2. übernimmt die Tag-Version in einen temporären Build-Arbeitsbaum,
 3. erzeugt mit Nextcloud 34 die interne `appinfo/signature.json`,
-4. installiert die signierte App in einer frischen Nextcloud-34-Instanz und
-   ruft den öffentlichen API-Endpunkt auf,
-5. erstellt ein reproduzierbares `tar.gz` und ein zusätzliches ZIP-Archiv,
-6. signiert das `tar.gz` separat für den Nextcloud App Store,
-7. veröffentlicht alle Dateien mit SHA-256-Prüfsummen im GitHub-Release und
-8. veröffentlicht stabile Versionen optional direkt im Nextcloud App Store.
+4. erstellt ein reproduzierbares `tar.gz` und ein zusätzliches ZIP-Archiv,
+5. signiert das `tar.gz` separat für den Nextcloud App Store,
+6. veröffentlicht alle Dateien mit SHA-256-Prüfsummen im GitHub-Release und
+7. veröffentlicht stabile Versionen direkt im Nextcloud App Store.
+
+Der Workflow verschiebt keine Tags und pusht keine Versions-Commits. Für die
+Installation ist das signierte `storageusage-vVERSION.tar.gz` aus den
+Release-Assets vorgesehen, nicht GitHubs automatisch erzeugtes
+`Source code`-Archiv.
 
 Die Einrichtung der drei benötigten Secrets und der genaue Bedienungsweg sind
 in [`.github/RELEASING.md`](.github/RELEASING.md) dokumentiert.

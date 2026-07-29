@@ -23,7 +23,32 @@ if grep -Fqx "## ${VERSION}" "${CHANGELOG_PATH}"; then
 	exit 0
 fi
 
-previous_tag="$(git -C "${REPOSITORY_ROOT}" describe --tags --abbrev=0 HEAD 2>/dev/null || true)"
+if grep -Fqx '## Unreleased' "${CHANGELOG_PATH}"; then
+	versioned_changelog="$(mktemp "${CHANGELOG_PATH}.XXXXXX")"
+	trap 'rm -f -- "${versioned_changelog}"' EXIT
+
+	awk -v version="${VERSION}" '
+		!replaced && $0 == "## Unreleased" {
+			print "## " version
+			replaced = 1
+			next
+		}
+		{ print }
+	' "${CHANGELOG_PATH}" > "${versioned_changelog}"
+
+	mv "${versioned_changelog}" "${CHANGELOG_PATH}"
+	trap - EXIT
+	echo "Finalized CHANGELOG.md section for ${VERSION}"
+	exit 0
+fi
+
+previous_ref=HEAD
+if [[ -n "${TAG:-}" ]] \
+	&& git -C "${REPOSITORY_ROOT}" rev-parse --verify --quiet "${TAG}^{commit}" >/dev/null \
+	&& [[ "$(git -C "${REPOSITORY_ROOT}" rev-parse HEAD)" == "$(git -C "${REPOSITORY_ROOT}" rev-parse "${TAG}^{commit}")" ]]; then
+	previous_ref="${TAG}^"
+fi
+previous_tag="$(git -C "${REPOSITORY_ROOT}" describe --tags --abbrev=0 "${previous_ref}" 2>/dev/null || true)"
 if [[ -n "${previous_tag}" ]]; then
 	mapfile -t changes < <(
 		git -C "${REPOSITORY_ROOT}" log \
