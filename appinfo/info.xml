@@ -3,17 +3,20 @@
       xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
     <id>storageusage</id>
     <name>Storage Usage API</name>
-    <summary>Public API for the total user storage usage</summary>
+    <summary>Public API for total and configurable folder storage usage</summary>
     <description><![CDATA[
 Provides a read-only JSON endpoint with the total storage usage of all known
-Nextcloud users.
+Nextcloud users and optional, separately configured folder sizes.
 
-The value is returned in bytes and cached locally for 60 seconds. The app uses
-Nextcloud's file cache and does not scan the storage recursively.
+Values are returned in bytes and in the selected output units. Results use the
+configurable local cache. The app uses Nextcloud's file cache and does not scan
+the storage recursively.
 
 **Privacy notice:** After the app is enabled, the endpoint is publicly
-accessible without authentication. It exposes only the aggregated storage
-usage, never usernames, individual usage values, file names, or file contents.
+accessible without authentication. It exposes the total usage plus the
+configured JSON keys and folder usage values. Choose non-sensitive JSON keys.
+Internal folder paths, usernames, user/file/storage IDs, file names, and file
+contents are never returned by the public endpoint.
     ]]></description>
     <version>1.0.2</version>
     <licence>AGPL-3.0-or-later</licence>
@@ -29,6 +32,7 @@ usage, never usernames, individual usage values, file names, or file contents.
     <repository>https://github.com/rkstraessler/RK_Storage_Usage</repository>
     <screenshot small-thumbnail="https://raw.githubusercontent.com/rkstraessler/RK_Storage_Usage/main/img/logo.png">https://raw.githubusercontent.com/rkstraessler/RK_Storage_Usage/main/img/logo.png</screenshot>
     <settings>
+        <admin>OCA\StorageUsage\Settings\FolderAdminSettings</admin>
         <admin-section>OCA\StorageUsage\Settings\AdminSection</admin-section>
     </settings>
     <dependencies>

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace OCA\StorageUsage\Service;
 
+use InvalidArgumentException;
 use OCA\StorageUsage\AppInfo\Application;
 use OCP\IConfig;
+use Throwable;
 
 final class SettingsService
 {
@@ -22,6 +24,10 @@ final class SettingsService
 
     public const DEFAULT_UNIT = self::UNIT_BYTES;
     public const DEFAULT_CACHE_TTL = 60;
+
+    private const FOLDER_ENTRIES_CONFIG_KEY = 'folder_entries';
+    private const FOLDER_KEY_PATTERN = '/^[A-Za-z][A-Za-z0-9_-]{0,63}$/D';
+    private const ENTRY_ID_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/D';
 
     public const AVAILABLE_UNITS = [
         self::UNIT_AUTO,
@@ -89,11 +95,94 @@ final class SettingsService
     }
 
     /**
+     * @return list<array{
+     *     id: string,
+     *     key: string,
+     *     viewUserId: string,
+     *     fileId: int,
+     *     storageId: string,
+     *     sourceUserId: string,
+     *     sourceFileId: int,
+     *     sourceStorageId: string,
+     *     sourceNumericStorageId: int,
+     *     path: string,
+     *     unit: string,
+     *     excludeFromTotal: bool
+     * }>
+     */
+    public function getFolderEntries(): array
+    {
+        $encodedEntries = $this->config->getAppValue(
+            Application::APP_ID,
+            self::FOLDER_ENTRIES_CONFIG_KEY,
+            '[]',
+        );
+
+        try {
+            $entries = json_decode($encodedEntries, true, 512, JSON_THROW_ON_ERROR);
+
+            return is_array($entries)
+                ? $this->normalizeFolderEntries($entries)
+                : [];
+        } catch (Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * @param array<array-key, mixed> $entries
+     * @return list<array{
+     *     id: string,
+     *     key: string,
+     *     viewUserId: string,
+     *     fileId: int,
+     *     storageId: string,
+     *     sourceUserId: string,
+     *     sourceFileId: int,
+     *     sourceStorageId: string,
+     *     sourceNumericStorageId: int,
+     *     path: string,
+     *     unit: string,
+     *     excludeFromTotal: bool
+     * }>
+     */
+    public function setFolderEntries(array $entries): array
+    {
+        $normalizedEntries = $this->normalizeFolderEntries($entries);
+        $encodedEntries = json_encode($normalizedEntries, JSON_THROW_ON_ERROR);
+
+        $this->config->setAppValue(
+            Application::APP_ID,
+            self::FOLDER_ENTRIES_CONFIG_KEY,
+            $encodedEntries,
+        );
+
+        return $normalizedEntries;
+    }
+
+    public function getFolderEntriesRevision(): string
+    {
+        $encodedEntries = json_encode($this->getFolderEntries());
+
+        return substr(hash('sha256', is_string($encodedEntries) ? $encodedEntries : '[]'), 0, 32);
+    }
+
+    /**
      * @return array{value: int|float, unit: string}
      */
     public function formatBytes(int $bytes): array
     {
-        $unit = $this->getUnit();
+        return $this->formatBytesForUnit($bytes, $this->getUnit());
+    }
+
+    /**
+     * @return array{value: int|float, unit: string}
+     */
+    public function formatBytesForUnit(int $bytes, string $unit): array
+    {
+        if (!in_array($unit, self::AVAILABLE_UNITS, true)) {
+            throw new InvalidArgumentException('Unsupported output unit.');
+        }
 
         if ($unit === self::UNIT_AUTO) {
             $unit = $this->getAutomaticUnit($bytes);
@@ -107,6 +196,165 @@ final class SettingsService
                 : round($bytes / $factor, 2),
             'unit' => $unit,
         ];
+    }
+
+    /**
+     * @param array<array-key, mixed> $entries
+     * @return list<array{
+     *     id: string,
+     *     key: string,
+     *     viewUserId: string,
+     *     fileId: int,
+     *     storageId: string,
+     *     sourceUserId: string,
+     *     sourceFileId: int,
+     *     sourceStorageId: string,
+     *     sourceNumericStorageId: int,
+     *     path: string,
+     *     unit: string,
+     *     excludeFromTotal: bool
+     * }>
+     */
+    private function normalizeFolderEntries(array $entries): array
+    {
+        if (!array_is_list($entries)) {
+            throw new InvalidArgumentException('Folder entries must be a list.');
+        }
+
+        $normalizedEntries = [];
+        $entryIds = [];
+        $keys = [];
+
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) {
+                throw new InvalidArgumentException('Every folder entry must be an object.');
+            }
+
+            $id = trim((string) ($entry['id'] ?? ''));
+            $key = trim((string) ($entry['key'] ?? ''));
+            $viewUserId = trim((string) ($entry['viewUserId'] ?? ''));
+            $fileId = filter_var($entry['fileId'] ?? null, FILTER_VALIDATE_INT);
+            $storageId = (string) ($entry['storageId'] ?? '');
+            $sourceUserId = trim((string) ($entry['sourceUserId'] ?? $viewUserId));
+            $sourceFileId = filter_var(
+                $entry['sourceFileId'] ?? $entry['fileId'] ?? null,
+                FILTER_VALIDATE_INT,
+            );
+            $sourceStorageId = (string) ($entry['sourceStorageId'] ?? $storageId);
+            // Entries created before source identities were introduced use 0
+            // and are upgraded the next time an administrator saves them.
+            $sourceNumericStorageId = filter_var(
+                $entry['sourceNumericStorageId'] ?? 0,
+                FILTER_VALIDATE_INT,
+            );
+            $path = $this->normalizeDisplayPath((string) ($entry['path'] ?? ''));
+            $unit = (string) ($entry['unit'] ?? '');
+            $excludeFromTotal = $entry['excludeFromTotal'] ?? null;
+
+            if (!preg_match(self::ENTRY_ID_PATTERN, $id)) {
+                throw new InvalidArgumentException('Every folder entry needs a valid stable ID.');
+            }
+
+            if (isset($entryIds[$id])) {
+                throw new InvalidArgumentException('Folder entry IDs must be unique.');
+            }
+
+            if (!preg_match(self::FOLDER_KEY_PATTERN, $key)) {
+                throw new InvalidArgumentException(
+                    'JSON keys must start with a letter and contain only letters, numbers, underscores, or hyphens (maximum 64 characters).',
+                );
+            }
+
+            if (isset($keys[$key])) {
+                throw new InvalidArgumentException('JSON keys must be unique.');
+            }
+
+            if ($viewUserId === ''
+                || strlen($viewUserId) > 255
+                || preg_match('/[\x00-\x1F\x7F]/', $viewUserId)) {
+                throw new InvalidArgumentException('Every folder entry needs a valid user identity.');
+            }
+
+            if ($fileId === false || $fileId < 1) {
+                throw new InvalidArgumentException('Every folder entry needs a valid file ID.');
+            }
+
+            if ($storageId === ''
+                || strlen($storageId) > 1024
+                || preg_match('/[\x00-\x1F\x7F]/', $storageId)) {
+                throw new InvalidArgumentException('Every folder entry needs a valid storage identity.');
+            }
+
+            if ($sourceUserId === ''
+                || strlen($sourceUserId) > 255
+                || preg_match('/[\x00-\x1F\x7F]/', $sourceUserId)
+                || $sourceFileId === false
+                || $sourceFileId < 1
+                || $sourceStorageId === ''
+                || strlen($sourceStorageId) > 1024
+                || preg_match('/[\x00-\x1F\x7F]/', $sourceStorageId)
+                || $sourceNumericStorageId === false
+                || $sourceNumericStorageId < 0) {
+                throw new InvalidArgumentException('Every folder entry needs a valid source identity.');
+            }
+
+            if ($path === '' || strlen($path) > 4096) {
+                throw new InvalidArgumentException('Every folder entry needs a valid display path.');
+            }
+
+            if (!in_array($unit, self::AVAILABLE_UNITS, true)) {
+                throw new InvalidArgumentException('Every folder entry needs a supported output unit.');
+            }
+
+            if (!is_bool($excludeFromTotal)) {
+                throw new InvalidArgumentException('Every folder entry needs an exclusion setting.');
+            }
+
+            $entryIds[$id] = true;
+            $keys[$key] = true;
+            $normalizedEntries[] = [
+                'id' => $id,
+                'key' => $key,
+                'viewUserId' => $viewUserId,
+                'fileId' => (int) $fileId,
+                'storageId' => $storageId,
+                'sourceUserId' => $sourceUserId,
+                'sourceFileId' => (int) $sourceFileId,
+                'sourceStorageId' => $sourceStorageId,
+                'sourceNumericStorageId' => (int) $sourceNumericStorageId,
+                'path' => $path,
+                'unit' => $unit,
+                'excludeFromTotal' => $excludeFromTotal,
+            ];
+        }
+
+        return $normalizedEntries;
+    }
+
+    private function normalizeDisplayPath(string $path): string
+    {
+        if ($path === ''
+            || str_contains($path, "\0")
+            || preg_match('/[\x01-\x1F\x7F]/', $path)) {
+            return '';
+        }
+
+        $path = str_replace('\\', '/', trim($path));
+        $segments = [];
+
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+
+            if ($segment === '..') {
+                return '';
+            }
+
+            $segments[] = $segment;
+        }
+
+        return '/' . implode('/', $segments);
     }
 
     private function getAutomaticUnit(int $bytes): string

@@ -1,0 +1,340 @@
+.storageusage-folder-settings {
+	max-width: 960px;
+}
+
+.storageusage-folder-settings .settings-hint {
+	max-width: 760px;
+	margin-bottom: 16px;
+	color: var(--color-text-maxcontrast, #6b6b6b);
+}
+
+.storageusage-status,
+.storageusage-browser-status {
+	min-height: 24px;
+	margin: 8px 0;
+}
+
+.storageusage-status--success {
+	color: var(--color-success-text, #267326);
+}
+
+.storageusage-status--error,
+.storageusage-browser-status--error {
+	color: var(--color-error-text, #c00);
+}
+
+.storageusage-entry-list {
+	display: grid;
+	gap: 16px;
+	margin: 12px 0 20px;
+}
+
+.storageusage-empty-state {
+	box-sizing: border-box;
+	max-width: 760px;
+	margin: 0;
+	padding: 20px;
+	border: 1px dashed var(--color-border-maxcontrast, #8c8c8c);
+	border-radius: var(--border-radius-large, 10px);
+	color: var(--color-text-maxcontrast, #6b6b6b);
+	text-align: center;
+}
+
+.storageusage-entry {
+	box-sizing: border-box;
+	max-width: 760px;
+	padding: 18px;
+	border: 1px solid var(--color-border, #d5d5d5);
+	border-radius: var(--border-radius-large, 10px);
+	background: var(--color-main-background, #fff);
+}
+
+.storageusage-entry__header,
+.storageusage-selected-folder,
+.storageusage-actions,
+.storageusage-dialog__header,
+.storageusage-dialog__footer,
+.storageusage-browser-item {
+	display: flex;
+	align-items: center;
+}
+
+.storageusage-entry__header {
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 16px;
+}
+
+.storageusage-entry__title {
+	min-width: 0;
+	margin: 0;
+	overflow: hidden;
+	font-size: 18px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.storageusage-remove-button {
+	flex: 0 0 auto;
+	color: var(--color-error-text, #c00);
+}
+
+.storageusage-entry__fields {
+	display: grid;
+	grid-template-columns: minmax(220px, 2fr) minmax(140px, 1fr);
+	gap: 16px;
+}
+
+.storageusage-field {
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+}
+
+.storageusage-field > label,
+.storageusage-selected-folder__label,
+.storageusage-checkbox-field__label {
+	font-weight: 600;
+}
+
+.storageusage-field input,
+.storageusage-field select {
+	box-sizing: border-box;
+	width: 100%;
+	margin: 6px 0 0;
+}
+
+.storageusage-field__hint {
+	margin: 5px 0 0;
+	color: var(--color-text-maxcontrast, #6b6b6b);
+	font-size: 13px;
+	font-weight: 400;
+}
+
+.storageusage-selected-folder {
+	justify-content: space-between;
+	gap: 16px;
+	margin-top: 18px;
+	padding: 12px;
+	border-radius: var(--border-radius, 6px);
+	background: var(--color-background-dark, #f4f4f4);
+}
+
+.storageusage-selected-folder__details {
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.storageusage-selected-folder__path {
+	overflow-wrap: anywhere;
+}
+
+.storageusage-checkbox-field {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	margin-top: 16px;
+}
+
+.storageusage-checkbox-field > input {
+	flex: 0 0 auto;
+	margin-top: 4px;
+}
+
+.storageusage-checkbox-field__label {
+	cursor: pointer;
+}
+
+.storageusage-actions {
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.storageusage-dialog {
+	box-sizing: border-box;
+	width: min(680px, calc(100vw - 32px));
+	max-width: none;
+	max-height: min(760px, calc(100vh - 32px));
+	padding: 0;
+	border: 1px solid var(--color-border-maxcontrast, #8c8c8c);
+	border-radius: var(--border-radius-large, 10px);
+	background: var(--color-main-background, #fff);
+	color: var(--color-main-text, #222);
+	box-shadow: 0 10px 35px rgb(0 0 0 / 25%);
+}
+
+.storageusage-dialog::backdrop {
+	background: rgb(0 0 0 / 45%);
+}
+
+.storageusage-dialog--fallback {
+	position: fixed;
+	top: 50%;
+	left: 50%;
+	z-index: 10000;
+	transform: translate(-50%, -50%);
+}
+
+.storageusage-dialog__content {
+	display: flex;
+	max-height: min(760px, calc(100vh - 32px));
+	flex-direction: column;
+}
+
+.storageusage-dialog__header {
+	justify-content: space-between;
+	gap: 12px;
+	padding: 16px 20px;
+	border-bottom: 1px solid var(--color-border, #d5d5d5);
+}
+
+.storageusage-dialog__header h2 {
+	margin: 0;
+}
+
+.storageusage-icon-button {
+	display: inline-flex;
+	width: 36px;
+	height: 36px;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: transparent;
+	font-size: 28px;
+	line-height: 1;
+}
+
+.storageusage-icon-button:hover,
+.storageusage-icon-button:focus-visible {
+	background: var(--color-background-hover, #ededed);
+}
+
+.storageusage-breadcrumbs {
+	display: flex;
+	min-height: 38px;
+	align-items: center;
+	gap: 4px;
+	overflow-x: auto;
+	padding: 10px 20px 2px;
+	white-space: nowrap;
+}
+
+.storageusage-breadcrumbs__button {
+	min-height: 32px;
+	padding: 4px 8px;
+	border: 0;
+	background: transparent;
+	color: var(--color-primary-element, #00679e);
+}
+
+.storageusage-breadcrumbs__button[aria-current='page'] {
+	color: var(--color-main-text, #222);
+	font-weight: 600;
+}
+
+.storageusage-breadcrumbs__separator {
+	color: var(--color-text-maxcontrast, #6b6b6b);
+}
+
+.storageusage-browser-status,
+.storageusage-browser-list-header,
+.storageusage-browser-list {
+	margin-right: 20px;
+	margin-left: 20px;
+}
+
+.storageusage-browser-list-header h3 {
+	margin: 4px 0 8px;
+	font-size: 15px;
+}
+
+.storageusage-browser-list {
+	min-height: 100px;
+	margin-top: 0;
+	margin-bottom: 0;
+	padding: 0;
+	overflow-y: auto;
+	border: 1px solid var(--color-border, #d5d5d5);
+	border-radius: var(--border-radius, 6px);
+	list-style: none;
+}
+
+.storageusage-browser-item {
+	min-height: 52px;
+	gap: 8px;
+	padding: 5px 8px 5px 12px;
+	border-bottom: 1px solid var(--color-border, #d5d5d5);
+}
+
+.storageusage-browser-item:last-child {
+	border-bottom: 0;
+}
+
+.storageusage-browser-item__open {
+	display: flex;
+	min-width: 0;
+	flex: 1;
+	align-items: center;
+	justify-content: flex-start;
+	overflow: hidden;
+	border: 0;
+	background: transparent;
+	text-align: left;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.storageusage-browser-item__open::before {
+	width: 24px;
+	margin-right: 8px;
+	content: '\1F4C1';
+	font-size: 18px;
+	text-align: center;
+}
+
+.storageusage-browser-item__open:hover,
+.storageusage-browser-item__open:focus-visible {
+	background: var(--color-background-hover, #ededed);
+}
+
+.storageusage-browser-item__select {
+	flex: 0 0 auto;
+}
+
+.storageusage-browser-empty {
+	padding: 28px 16px;
+	color: var(--color-text-maxcontrast, #6b6b6b);
+	text-align: center;
+}
+
+.storageusage-dialog__footer {
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 16px;
+	padding: 12px 20px 16px;
+	border-top: 1px solid var(--color-border, #d5d5d5);
+}
+
+@media (max-width: 600px) {
+	.storageusage-entry__fields {
+		grid-template-columns: 1fr;
+	}
+
+	.storageusage-selected-folder {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.storageusage-dialog__footer {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.storageusage-dialog__footer .button {
+		width: 100%;
+	}
+}

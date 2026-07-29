@@ -65,7 +65,7 @@ stage_app() {
 	mkdir -p "${app_directory}"
 
 	git -C "${REPOSITORY_ROOT}" archive --format=tar HEAD -- \
-		appinfo img l10n lib CHANGELOG.md LICENSE README.md \
+		appinfo css img js l10n lib templates CHANGELOG.md LICENSE README.md \
 		| tar -xf - -C "${app_directory}"
 
 	rm -f "${app_directory}/appinfo/signature.json"

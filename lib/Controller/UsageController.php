@@ -27,13 +27,35 @@ final class UsageController extends Controller
     #[NoCSRFRequired]
     public function get(): JSONResponse
     {
-        $totalUsageBytes = $this->usageService->getTotalUsage();
-        $formattedUsage = $this->settingsService->formatBytes($totalUsageBytes);
+        $usage = $this->usageService->getUsage();
+        $formattedUsage = $this->settingsService->formatBytes($usage['totalUsageBytes']);
+        $folders = [];
+
+        foreach ($usage['folders'] as $key => $folder) {
+            $formattedFolderUsage = $folder['usageBytes'] === null
+                ? null
+                : $this->settingsService->formatBytesForUnit(
+                    $folder['usageBytes'],
+                    $folder['unit'],
+                );
+
+            $folders[$key] = [
+                'usage' => $formattedFolderUsage['value'] ?? null,
+                'unit' => $formattedFolderUsage['unit'] ?? $folder['unit'],
+                'usageBytes' => $folder['usageBytes'],
+                'excludeFromTotal' => $folder['excludeFromTotal'],
+                'excludedFromTotal' => $folder['excludedFromTotal'],
+                'status' => $folder['status'],
+            ];
+        }
 
         $response = new JSONResponse([
             'totalUsage' => $formattedUsage['value'],
             'unit' => $formattedUsage['unit'],
-            'totalUsageBytes' => $totalUsageBytes,
+            'totalUsageBytes' => $usage['totalUsageBytes'],
+            'baseTotalUsageBytes' => $usage['baseTotalUsageBytes'],
+            'excludedUsageBytes' => $usage['excludedUsageBytes'],
+            'folders' => (object) $folders,
             'cacheTtl' => $this->settingsService->getCacheTtl(),
         ]);
 
