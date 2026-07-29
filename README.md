@@ -1,7 +1,9 @@
 # Storage Usage API
 
 Storage Usage API ist eine kleine Nextcloud-App, die die summierte
-Speichernutzung aller bekannten Benutzer als JSON bereitstellt.
+Speichernutzung aller bekannten Benutzer als JSON bereitstellt. Zusätzlich
+können Administratoren beliebig viele erreichbare Ordner auswählen und deren
+Speichernutzung unter frei wählbaren JSON-Schlüsseln separat ausgeben.
 
 ## Kompatibilität
 
@@ -20,16 +22,34 @@ Beispiel:
 
 ```json
 {
-    "totalUsage": 3.35,
+    "totalUsage": 2.58,
     "unit": "GiB",
-    "totalUsageBytes": 3596755985,
-    "cacheTtl": 60
+    "totalUsageBytes": 2767769600,
+    "baseTotalUsageBytes": 3596755985,
+    "excludedUsageBytes": 829986385,
+    "cacheTtl": 60,
+    "folders": {
+        "archive": {
+            "usage": 791.54,
+            "unit": "MiB",
+            "usageBytes": 829986385,
+            "excludeFromTotal": true,
+            "excludedFromTotal": true,
+            "status": "ok"
+        }
+    }
 }
 ```
 
 Die Ausgabeeinheit für `totalUsage` kann im Nextcloud-Adminbereich eingestellt
 werden. `totalUsageBytes` enthält unabhängig davon immer den exakten Wert in
-Bytes.
+Bytes. `baseTotalUsageBytes` ist die unveränderte Speichernutzung aller
+Benutzer. `excludedUsageBytes` zeigt, wie viele Bytes durch konfigurierte
+Ordnerausschlüsse einmalig von dieser Basis abgezogen wurden. `folders`
+enthält die separat konfigurierten Ordner, jeweils unter dem vom Administrator
+festgelegten Schlüssel. Ein nicht mehr erreichbarer Ordner bleibt mit
+`status: "unavailable"` sichtbar; seine Verbrauchswerte sind dann `null` und er
+wird nicht von der Gesamtsumme abgezogen.
 
 ## Einstellungen
 
@@ -45,23 +65,53 @@ die binären IEC-Einheiten den Faktor 1024. `Auto` wählt abhängig von der Grö
 automatisch `B`, `KiB`, `MiB`, `GiB` oder `TiB`.
 Die Cache-Zeit kann auf 0, 30, 60, 300, 900 oder 3600 Sekunden gesetzt werden.
 Bei 0 wird der Wert für jede Anfrage neu berechnet.
+Mit **API-Link öffnen** lässt sich der passende öffentliche Endpoint direkt in
+einem neuen Browser-Tab öffnen.
+
+### Separate Ordner
+
+Über **Ordner auswählen** können Administratoren durch die Ordner navigieren,
+auf die ihr eigenes Nextcloud-Konto Zugriff hat, und auch Unterordner
+auswählen. Für jeden Eintrag lassen sich ein eindeutiger JSON-Schlüssel, eine
+eigene Ausgabeeinheit und die Option **Aus Gesamtsumme ausschließen** festlegen.
+Die Liste ist nicht auf eine feste Anzahl von Einträgen begrenzt.
+
+Ohne aktivierten Ausschluss wird der Ordner lediglich separat ausgegeben und
+bleibt wie bisher Teil von `totalUsage`. Mit aktiviertem Ausschluss wird seine
+Größe zusätzlich separat ausgegeben und einmalig von `totalUsage` abgezogen.
+Überlappende Ausschlüsse, beispielsweise ein Ordner und einer seiner
+Unterordner, werden nicht doppelt abgezogen. `totalUsageBytes` kann dabei nie
+kleiner als 0 werden.
+
+Der Status `ok` bedeutet, dass der Ordner erfolgreich ermittelt wurde. Ein
+erreichbarer Ordner auf einem Speicher, der nicht in der bisherigen
+Benutzer-Gesamtsumme enthalten ist, erhält `not_in_total`: Seine Größe wird
+separat ausgegeben, kann aber nicht von einer Summe abgezogen werden, in der sie
+gar nicht enthalten ist. `excludedFromTotal` zeigt unabhängig von der
+Konfiguration, ob der Eintrag bei dieser Berechnung tatsächlich abgezogen
+wurde.
 
 ## Datenschutz und Sicherheit
 
 Der Endpoint ist bewusst **öffentlich und ohne Anmeldung erreichbar**. Er gibt
-nur die Gesamtsumme zurück. Benutzernamen, einzelne Verbrauchswerte,
-Dateinamen und Dateiinhalte werden nicht ausgegeben.
+die Gesamtsumme und – sofern konfiguriert – die vom Administrator benannten
+JSON-Schlüssel mit den jeweiligen Ordnergrößen zurück. Deshalb dürfen die
+Schlüssel selbst keine vertraulichen Informationen enthalten. Interne
+Datei-IDs, Speicher-IDs, Benutzerkennungen, Ordnerpfade, Dateinamen und
+Dateiinhalte werden nicht ausgegeben.
 
 Wer die Gesamtsumme nicht öffentlich bereitstellen möchte, darf die App nicht
 aktivieren oder muss den Endpoint zusätzlich über den vorgeschalteten
-Webserver schützen.
+Webserver schützen. Wer nur die einzelnen Ordnergrößen nicht veröffentlichen
+möchte, darf keine separaten Ordner konfigurieren.
 
 ## Cache
 
 - Interner Nextcloud-Local-Cache
 - Einstellbare TTL: 0 bis 3600 Sekunden
 - Bei konfiguriertem `memcache.local` wird beispielsweise APCu verwendet
-- Der erste Request nach Ablauf berechnet den Wert neu
+- Der erste Request nach Ablauf oder einer geänderten Ordnerkonfiguration
+  berechnet die Werte neu
 - Weitere Requests innerhalb der eingestellten Cache-Zeit lesen nur den Cache
 - Es wird kein rekursiver Festplatten-Scan ausgeführt
 

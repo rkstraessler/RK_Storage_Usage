@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Configurable list of separately reported folders with an individual JSON key
+  and output unit for every entry
+- Folder picker with navigation into subfolders in the Nextcloud admin settings
+- Direct API-link button in the admin settings
+- Per-folder option to exclude its storage usage from the reported total
+- Stable source identities for folders shared with the configuring administrator
+- Exact unadjusted and excluded byte values in the API response
+- Explicit `unavailable` and `not_in_total` states for folder entries that
+  cannot safely affect the total
+
 ## 1.0.2
 
 ### Added
