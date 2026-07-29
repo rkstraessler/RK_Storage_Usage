@@ -90,6 +90,28 @@ Das vollständige REIKEM-Logo ist als App-Store-Vorschau hinterlegt. Für
 Nextclouds App-Symbol wird das eigenständige Vektor-`R` aus `img/app.svg`
 verwendet.
 
+## Automatische Releases
+
+Der Workflow `Build, sign and publish release` übernimmt den vollständigen
+Release-Prozess. Unter GitHub muss lediglich unter `Actions` der Workflow
+ausgewählt, `Run workflow` angeklickt und eine neue Version ohne führendes `v`
+eingetragen werden, beispielsweise `2.0.0`.
+
+Der Workflow:
+
+1. prüft die SemVer-Version und erhöht sie in `appinfo/info.xml`,
+2. ergänzt das Changelog und erstellt den Versions-Commit sowie das Tag,
+3. erzeugt mit Nextcloud 34 die interne `appinfo/signature.json`,
+4. installiert die signierte App in einer frischen Nextcloud-34-Instanz und
+   ruft den öffentlichen API-Endpunkt auf,
+5. erstellt ein reproduzierbares `tar.gz` und ein zusätzliches ZIP-Archiv,
+6. signiert das `tar.gz` separat für den Nextcloud App Store,
+7. veröffentlicht alle Dateien mit SHA-256-Prüfsummen im GitHub-Release und
+8. veröffentlicht stabile Versionen optional direkt im Nextcloud App Store.
+
+Die Einrichtung der drei benötigten Secrets und der genaue Bedienungsweg sind
+in [`.github/RELEASING.md`](.github/RELEASING.md) dokumentiert.
+
 ## Lizenz
 
 AGPL-3.0-or-later
