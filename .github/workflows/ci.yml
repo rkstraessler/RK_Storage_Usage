@@ -46,7 +46,11 @@ jobs:
             "${output_directory}" \
             "$(git show -s --format=%ct HEAD)"
 
-          tar -tzf "${output_directory}/storageusage-v${version}.tar.gz" \
-            | grep -q '^storageusage/appinfo/info.xml$'
-          unzip -l "${output_directory}/storageusage-v${version}.zip" \
-            | grep -q 'storageusage/appinfo/info.xml'
+          tar -tzf \
+            "${output_directory}/storageusage-v${version}.tar.gz" \
+            storageusage/appinfo/info.xml \
+            >/dev/null
+          unzip -Z1 \
+            "${output_directory}/storageusage-v${version}.zip" \
+            storageusage/appinfo/info.xml \
+            >/dev/null
