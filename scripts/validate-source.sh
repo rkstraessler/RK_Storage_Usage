@@ -8,7 +8,7 @@ cd "${REPOSITORY_ROOT}"
 
 while IFS= read -r -d '' file; do
 	php -l "${file}"
-done < <(find appinfo lib scripts -type f -name '*.php' -print0)
+done < <(find appinfo lib scripts templates -type f -name '*.php' -print0)
 
 php -r '
 	libxml_use_internal_errors(true);
