@@ -239,8 +239,6 @@ jobs:
           docker run --detach \
             --name "${container_name}" \
             --network none \
-            --volume "${STAGE_ROOT}:/release" \
-            --volume "${CERTIFICATE_DIRECTORY}:/certificates:ro" \
             "${NEXTCLOUD_IMAGE}"
 
           for attempt in {1..60}; do
@@ -254,11 +252,34 @@ jobs:
             sleep 1
           done
 
+          docker exec "${container_name}" mkdir -p /release /certificates
+          docker cp \
+            "${STAGE_ROOT}/${APP_ID}" \
+            "${container_name}:/release/"
+          docker cp \
+            "${CERTIFICATE_DIRECTORY}/${APP_ID}.key" \
+            "${container_name}:/certificates/${APP_ID}.key"
+          docker cp \
+            "${CERTIFICATE_DIRECTORY}/${APP_ID}.crt" \
+            "${container_name}:/certificates/${APP_ID}.crt"
+          docker exec "${container_name}" chmod 600 \
+            "/certificates/${APP_ID}.key" \
+            "/certificates/${APP_ID}.crt"
+
+          docker exec "${container_name}" test -r \
+            "/certificates/${APP_ID}.key"
+          docker exec "${container_name}" test -r \
+            "/certificates/${APP_ID}.crt"
+          docker exec "${container_name}" test -d \
+            "/release/${APP_ID}"
+
           docker exec "${container_name}" php occ integrity:sign-app \
             --privateKey="/certificates/${APP_ID}.key" \
             --certificate="/certificates/${APP_ID}.crt" \
             --path="/release/${APP_ID}"
-          docker exec "${container_name}" chown -R "$(id -u):$(id -g)" /release
+          docker exec "${container_name}" cat \
+            "/release/${APP_ID}/appinfo/signature.json" \
+            > "${STAGE_ROOT}/${APP_ID}/appinfo/signature.json"
           cleanup_signer
           trap - EXIT
 
