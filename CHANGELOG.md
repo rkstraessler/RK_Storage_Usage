@@ -14,6 +14,11 @@
 - Explicit `unavailable` and `not_in_total` states for folder entries that
   cannot safely affect the total
 
+### Fixed
+
+- Keep the folder picker hidden while closed and center it independently of
+  Nextcloud's global dialog styles
+
 ## 1.0.2
 
 ### Added

@@ -285,8 +285,8 @@
 				dialog.close()
 			} else {
 				dialog.removeAttribute('open')
-				dialog.classList.remove('storageusage-dialog--fallback')
 			}
+			dialog.classList.remove('storageusage-dialog--fallback')
 			editingEntryId = null
 			currentBrowserData = null
 		}

@@ -158,6 +158,7 @@
 	max-width: none;
 	max-height: min(760px, calc(100vh - 32px));
 	padding: 0;
+	overflow: hidden;
 	border: 1px solid var(--color-border-maxcontrast, #8c8c8c);
 	border-radius: var(--border-radius-large, 10px);
 	background: var(--color-main-background, #fff);
@@ -165,16 +166,24 @@
 	box-shadow: 0 10px 35px rgb(0 0 0 / 25%);
 }
 
+.storageusage-dialog:not([open]) {
+	display: none;
+}
+
+.storageusage-dialog[open] {
+	display: block;
+	position: fixed;
+	inset: 50% auto auto 50%;
+	margin: 0;
+	transform: translate(-50%, -50%);
+}
+
 .storageusage-dialog::backdrop {
 	background: rgb(0 0 0 / 45%);
 }
 
 .storageusage-dialog--fallback {
-	position: fixed;
-	top: 50%;
-	left: 50%;
 	z-index: 10000;
-	transform: translate(-50%, -50%);
 }
 
 .storageusage-dialog__content {
