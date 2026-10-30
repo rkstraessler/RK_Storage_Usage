@@ -108,6 +108,11 @@ verwendet für die Integritätssignatur einen eigenen kurzlebigen
 Digest wird zentral in `scripts/nextcloud-image.txt` gepflegt. Release-Workflow
 und beide lokalen Release-Tests lesen denselben Wert.
 
+Der Signierprozess läuft ausdrücklich als `www-data`. Die nur für diesen
+Benutzer lesbaren Schlüssel und das temporäre App-Verzeichnis gehören ebenfalls
+`www-data`, da `occ` beim Start als root auf den Besitzer der Nextcloud-Konfiguration
+wechselt. Die CI prüft den Signiervorgang zusätzlich mit wegwerfbaren Testschlüsseln.
+
 Die Nextcloud-Versionsfreigabe ist ab App 1.0.4 auf `34` bis `999` gesetzt.
 Damit ist bei einer neuen Nextcloud-Hauptversion kein Release nur für eine
 geänderte `max-version` nötig. Die CI prüft zusätzlich Nextcloud 34 und die

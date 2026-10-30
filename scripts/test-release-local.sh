@@ -68,7 +68,7 @@ docker run --detach \
 	--name "${CONTAINER_NAME}" \
 	--network none \
 	--volume "${TEST_ROOT}/stage:/release" \
-	--volume "${CERTIFICATE_DIRECTORY}:/certificates:ro" \
+	--volume "${CERTIFICATE_DIRECTORY}:/certificate-source:ro" \
 	--volume "${REPOSITORY_ROOT}/scripts:/release-tools:ro" \
 	"${NEXTCLOUD_IMAGE}" >/dev/null
 
@@ -83,7 +83,15 @@ for attempt in {1..60}; do
 	sleep 1
 done
 
-docker exec "${CONTAINER_NAME}" php occ integrity:sign-app \
+docker exec "${CONTAINER_NAME}" mkdir -p /certificates
+docker exec "${CONTAINER_NAME}" cp \
+	/certificate-source/storageusage.key /certificate-source/storageusage.crt /certificates/
+docker exec "${CONTAINER_NAME}" chown -R www-data:www-data /release/storageusage /certificates
+docker exec "${CONTAINER_NAME}" chmod 600 /certificates/storageusage.key /certificates/storageusage.crt
+docker exec --user www-data "${CONTAINER_NAME}" test -r /certificates/storageusage.key
+docker exec --user www-data "${CONTAINER_NAME}" test -r /certificates/storageusage.crt
+docker exec --user www-data "${CONTAINER_NAME}" test -w /release/storageusage/appinfo
+docker exec --user www-data "${CONTAINER_NAME}" php occ integrity:sign-app \
 	--privateKey=/certificates/storageusage.key \
 	--certificate=/certificates/storageusage.crt \
 	--path=/release/storageusage

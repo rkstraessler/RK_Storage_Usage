@@ -87,4 +87,28 @@ for route in GET:admin/folders PUT:admin/folder-settings; do
 	fi
 done
 
+docker exec "${CONTAINER_NAME}" mkdir -p /tmp/storageusage-signer/app /tmp/storageusage-signer/certificates
+docker exec "${CONTAINER_NAME}" cp -a \
+	/var/www/html/custom_apps/storageusage/. /tmp/storageusage-signer/app/
+# Disposable credentials exercise signing without access to real release secrets.
+docker exec "${CONTAINER_NAME}" openssl req -x509 -newkey rsa:2048 -nodes \
+	-keyout /tmp/storageusage-signer/certificates/storageusage.key \
+	-out /tmp/storageusage-signer/certificates/storageusage.crt \
+	-subj /CN=storageusage -days 1 >/dev/null 2>&1
+docker exec "${CONTAINER_NAME}" chown -R www-data:www-data /tmp/storageusage-signer
+docker exec "${CONTAINER_NAME}" chmod 600 \
+	/tmp/storageusage-signer/certificates/storageusage.key \
+	/tmp/storageusage-signer/certificates/storageusage.crt
+docker exec --user www-data "${CONTAINER_NAME}" test -r /tmp/storageusage-signer/certificates/storageusage.key
+docker exec --user www-data "${CONTAINER_NAME}" php occ integrity:sign-app \
+	--privateKey=/tmp/storageusage-signer/certificates/storageusage.key \
+	--certificate=/tmp/storageusage-signer/certificates/storageusage.crt \
+	--path=/tmp/storageusage-signer/app
+docker exec -i "${CONTAINER_NAME}" sh -c 'cat > /tmp/storageusage-validate-signature.php' \
+	< "${SCRIPT_DIR}/validate-integrity-signature.php"
+docker exec --user www-data "${CONTAINER_NAME}" php /tmp/storageusage-validate-signature.php \
+	/tmp/storageusage-signer/app/appinfo/signature.json \
+	/tmp/storageusage-signer/certificates/storageusage.crt \
+	/tmp/storageusage-signer/app
+
 echo "Nextcloud compatibility test succeeded for ${NEXTCLOUD_IMAGE}"
