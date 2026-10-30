@@ -104,7 +104,17 @@ vorhandenen Release-Text nicht.
 Die lokal über Docker Desktop laufende Nextcloud bleibt für manuelle Tests
 erhalten. GitHub Actions greift nicht auf den lokalen Rechner zu, sondern
 verwendet für die Integritätssignatur einen eigenen kurzlebigen
-`nextcloud:34.0.2-apache`-Container.
+`nextcloud:35.0.2-apache`-Container. Das genaue Image samt unveränderlichem
+Digest wird zentral in `scripts/nextcloud-image.txt` gepflegt. Release-Workflow
+und beide lokalen Release-Tests lesen denselben Wert.
+
+Die Nextcloud-Versionsfreigabe ist ab App 1.0.4 auf `34` bis `999` gesetzt.
+Damit ist bei einer neuen Nextcloud-Hauptversion kein Release nur für eine
+geänderte `max-version` nötig. Die CI prüft zusätzlich Nextcloud 34 und die
+jeweils neueste stabile Version wöchentlich und bei Änderungen. Änderungen
+an Nextcloud-APIs können weiterhin eine Anpassung der App erfordern. Einmalig
+muss 1.0.4 als neuer Release veröffentlicht und installiert werden; vorhandene
+signierte Release-Assets werden nicht verändert.
 
 Der Release-Build kann unter Windows mit der bestehenden Docker-Desktop- und
 Ubuntu-WSL-Installation ohne Veröffentlichung vollständig geprüft werden:

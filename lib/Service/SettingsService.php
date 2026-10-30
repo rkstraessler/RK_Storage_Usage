@@ -6,7 +6,7 @@ namespace OCA\StorageUsage\Service;
 
 use InvalidArgumentException;
 use OCA\StorageUsage\AppInfo\Application;
-use OCP\IConfig;
+use OCP\IAppConfig;
 use Throwable;
 
 final class SettingsService
@@ -64,13 +64,13 @@ final class SettingsService
     ];
 
     public function __construct(
-        private readonly IConfig $config,
+        private readonly IAppConfig $appConfig,
     ) {
     }
 
     public function getUnit(): string
     {
-        $unit = $this->config->getAppValue(
+        $unit = $this->appConfig->getValueString(
             Application::APP_ID,
             'output_unit',
             self::DEFAULT_UNIT,
@@ -83,7 +83,7 @@ final class SettingsService
 
     public function getCacheTtl(): int
     {
-        $cacheTtl = (int) $this->config->getAppValue(
+        $cacheTtl = (int) $this->appConfig->getValueString(
             Application::APP_ID,
             'cache_ttl',
             (string) self::DEFAULT_CACHE_TTL,
@@ -112,7 +112,7 @@ final class SettingsService
      */
     public function getFolderEntries(): array
     {
-        $encodedEntries = $this->config->getAppValue(
+        $encodedEntries = $this->appConfig->getValueString(
             Application::APP_ID,
             self::FOLDER_ENTRIES_CONFIG_KEY,
             '[]',
@@ -151,7 +151,7 @@ final class SettingsService
         $normalizedEntries = $this->normalizeFolderEntries($entries);
         $encodedEntries = json_encode($normalizedEntries, JSON_THROW_ON_ERROR);
 
-        $this->config->setAppValue(
+        $this->appConfig->setValueString(
             Application::APP_ID,
             self::FOLDER_ENTRIES_CONFIG_KEY,
             $encodedEntries,

@@ -33,14 +33,13 @@ jobs:
     env:
       APP_ID: storageusage
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
-      # Official nextcloud:34.0.2-apache image pinned to an immutable digest.
-      NEXTCLOUD_IMAGE: nextcloud:34.0.2-apache@sha256:e93ccfc952c95f18175f3d297fb2f60c35070c05ca976050c250a9ddab793e75
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      WORKFLOW_COMMIT: ${{ github.workflow_sha }}
 
     steps:
       - name: Check out the release tag
-        # actions/checkout v6.0.2
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.release.tag_name || inputs.tag }}
           fetch-depth: 0
@@ -49,10 +48,14 @@ jobs:
 
       - name: Initialize temporary paths
         run: |
+          set -Eeuo pipefail
+          # Use the workflow's config even when rebuilding an older release tag.
+          nextcloud_image="$(git show "${WORKFLOW_COMMIT}:scripts/nextcloud-image.txt" | tr -d '\r\n')"
           {
             echo "STAGE_ROOT=${RUNNER_TEMP}/storageusage-stage"
             echo "OUTPUT_DIRECTORY=${RUNNER_TEMP}/storageusage-release"
             echo "CERTIFICATE_DIRECTORY=${RUNNER_TEMP}/storageusage-certificates"
+            echo "NEXTCLOUD_IMAGE=${nextcloud_image}"
           } >> "${GITHUB_ENV}"
 
       - name: Read and validate release metadata

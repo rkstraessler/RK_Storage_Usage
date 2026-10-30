@@ -1,13 +1,16 @@
 param(
 	[string] $WslDistribution = 'Ubuntu',
 	[string] $WslCertificateDirectory = '/home/kstraessler/.nextcloud/certificates',
-	[string] $NextcloudImage = 'nextcloud:34.0.2-apache@sha256:e93ccfc952c95f18175f3d297fb2f60c35070c05ca976050c250a9ddab793e75'
+	[string] $NextcloudImage = ''
 )
 
 $ErrorActionPreference = 'Stop'
 
 $appId = 'storageusage'
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+if ([string]::IsNullOrWhiteSpace($NextcloudImage)) {
+	$NextcloudImage = (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'nextcloud-image.txt') -Raw).Trim()
+}
 $systemTempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $testRoot = Join-Path $systemTempRoot ("storageusage-release-test-{0}" -f [guid]::NewGuid().ToString('N'))
 $containerName = "storageusage-release-test-{0}" -f [guid]::NewGuid().ToString('N').Substring(0, 12)

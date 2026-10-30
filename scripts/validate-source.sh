@@ -26,5 +26,11 @@ php -r '
 	json_decode(file_get_contents("l10n/de.json"), true, 512, JSON_THROW_ON_ERROR);
 '
 
-bash -n scripts/*.sh
+for script in scripts/*.sh; do
+	bash -n "${script}"
+done
+if [[ ! "$(tr -d '\r\n' < scripts/nextcloud-image.txt)" =~ ^nextcloud:[0-9]+\.[0-9]+\.[0-9]+-apache@sha256:[a-f0-9]{64}$ ]]; then
+	echo "The release signer must use a versioned, digest-pinned official Nextcloud image." >&2
+	exit 1
+fi
 echo "Source validation succeeded for storageusage ${version}"

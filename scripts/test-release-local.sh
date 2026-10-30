@@ -5,7 +5,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPOSITORY_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CERTIFICATE_DIRECTORY="${1:-${HOME}/.nextcloud/certificates}"
-NEXTCLOUD_IMAGE="${2:-nextcloud:34.0.2-apache@sha256:e93ccfc952c95f18175f3d297fb2f60c35070c05ca976050c250a9ddab793e75}"
+NEXTCLOUD_IMAGE="${2:-$(tr -d '\r\n' < "${SCRIPT_DIR}/nextcloud-image.txt")}"
 APP_ID="storageusage"
 TEST_ROOT="$(mktemp -d /tmp/storageusage-release-test.XXXXXX)"
 CONTAINER_NAME="storageusage-release-test-$$"

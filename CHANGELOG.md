@@ -1,6 +1,29 @@
 # Changelog
 
-## Unreleased
+## 1.0.4
+
+### Changed
+
+- Allow Nextcloud 34 through 999 so new major versions do not require a
+  metadata-only app release; future API compatibility is checked separately
+- Use the typed public IAppConfig API instead of deprecated IConfig app methods
+- Update the shared, digest-pinned release signer to Nextcloud 35.0.2
+- Align the minimum PHP version with Nextcloud 34 (PHP 8.2)
+- Update actions/checkout to 7.0.1
+
+### Added
+
+- Disposable Nextcloud integration checks for installation, admin settings,
+  folder selection, exclusions, caching and the anonymous JSON endpoint
+- CI coverage for Nextcloud 34 and the latest stable release, including a
+  weekly run that detects upstream changes without repository updates
+
+### Fixed
+
+- Put dependency metadata before settings to satisfy the official App Store
+  XML schema and validate that schema in CI
+
+## 1.0.3
 
 ### Added
 

@@ -4,9 +4,15 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '23 6 * * 1'
 
 permissions:
   contents: read
+
+concurrency:
+  group: storageusage-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 defaults:
   run:
@@ -20,14 +26,21 @@ jobs:
 
     steps:
       - name: Check out repository
-        # actions/checkout v6.0.2
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Validate source, metadata and scripts
         run: bash scripts/validate-source.sh
+
+      - name: Validate the official App Store schema
+        run: |
+          curl --fail --silent --show-error --location \
+            https://apps.nextcloud.com/schema/apps/info.xsd \
+            --output "${RUNNER_TEMP}/nextcloud-info.xsd"
+          php scripts/validate-app-metadata.php "${RUNNER_TEMP}/nextcloud-info.xsd"
 
       - name: Validate package structure
         run: |
@@ -54,3 +67,27 @@ jobs:
             "${output_directory}/storageusage-v${version}.zip" \
             storageusage/appinfo/info.xml \
             >/dev/null
+
+  compatibility:
+    name: Compatibility (${{ matrix.image }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # Moving tags deliberately catch new stable Nextcloud releases.
+        image:
+          - nextcloud:34-apache
+          - nextcloud:apache
+
+    steps:
+      - name: Check out repository
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Test installation, settings and public API
+        env:
+          NEXTCLOUD_TEST_IMAGE: ${{ matrix.image }}
+        run: bash scripts/test-nextcloud-compatibility.sh "${NEXTCLOUD_TEST_IMAGE}"

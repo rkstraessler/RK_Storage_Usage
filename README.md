@@ -7,8 +7,24 @@ Speichernutzung unter frei wählbaren JSON-Schlüsseln separat ausgeben.
 
 ## Kompatibilität
 
-- Nextcloud 34
-- PHP 8.1 oder neuer
+- Nextcloud 34 und neuer (in den App-Metadaten bis Hauptversion 999 freigegeben)
+- PHP 8.2 oder neuer; zusätzlich gelten die PHP-Anforderungen der jeweiligen
+  Nextcloud-Version, beispielsweise PHP 8.3 bis 8.5 bei Nextcloud 35
+
+Die App ist nicht mehr auf eine einzelne Nextcloud-Hauptversion begrenzt.
+Ein Versionssprung benötigt daher kein neues App-Paket allein zum Anheben der
+Freigabe. Der Nextcloud App Store verlangt eine numerische `max-version` und
+unterstützt keine unbegrenzte Wildcard; deshalb ist sie auf `999` gesetzt.
+Die Mindestversion bleibt 34, da die App deren öffentliche Einstellungs-APIs
+verwendet. Details zum Format stehen in der
+[offiziellen Metadaten-Dokumentation](https://docs.nextcloud.com/server/stable/developer_manual/app_development/info.html).
+
+Diese Freigabe ersetzt keine Funktionsprüfung zukünftiger APIs. Die CI prüft
+Nextcloud 34 und das jeweils neueste stabile offizielle Docker-Image
+(`nextcloud:apache`) bei Änderungen und wöchentlich. Aktuell sind das
+Nextcloud 34.0.5 und 35.0.2. Echte API-Änderungen können weiterhin ein
+App-Update erfordern. Bereits veröffentlichte Pakete behalten ihre bisherigen
+Versionsgrenzen; die erweiterte Freigabe gilt ab App-Version 1.0.4.
 
 ## Endpoint
 
@@ -152,7 +168,7 @@ Der Workflow:
 
 1. prüft Release, SemVer-Tag und Zugehörigkeit zu `main`,
 2. übernimmt die Tag-Version in einen temporären Build-Arbeitsbaum,
-3. erzeugt mit Nextcloud 34 die interne `appinfo/signature.json`,
+3. erzeugt mit Nextcloud 35.0.2 die interne `appinfo/signature.json`,
 4. erstellt ein reproduzierbares `tar.gz` und ein zusätzliches ZIP-Archiv,
 5. signiert das `tar.gz` separat für den Nextcloud App Store,
 6. veröffentlicht alle Dateien mit SHA-256-Prüfsummen im GitHub-Release und
@@ -165,6 +181,31 @@ Release-Assets vorgesehen, nicht GitHubs automatisch erzeugtes
 
 Die Einrichtung der drei benötigten Secrets und der genaue Bedienungsweg sind
 in [`.github/RELEASING.md`](.github/RELEASING.md) dokumentiert.
+
+## Kompatibilität lokal prüfen
+
+Mit Docker und Bash lässt sich die App ohne Signierschlüssel oder
+Veröffentlichung prüfen:
+
+```bash
+bash scripts/test-nextcloud-compatibility.sh
+bash scripts/test-nextcloud-compatibility.sh nextcloud:34-apache
+bash scripts/test-nextcloud-compatibility.sh nextcloud:apache
+```
+
+Unter Windows können die Befehle in WSL mit Docker-Desktop-Integration
+ausgeführt werden. Ohne Image-Argument verwendet der Test dasselbe
+digestgebundene Image wie der Release-Build aus `scripts/nextcloud-image.txt`.
+Die CI verwendet bewusst bewegliche Tags, damit neue stabile Versionen auch
+ohne Änderungen am Repository geprüft werden.
+
+Der Test installiert eine eigene Nextcloud mit SQLite in einem temporären
+Container ohne Netzwerkzugang und ohne veröffentlichte Ports. Er prüft die
+Aktivierung ohne `--force`, bestehende Konfigurationswerte, Admin-Einstellungen,
+Ordnerauswahl, überlappende Ausschlüsse, nicht verfügbare Ordner, den lokalen
+Cache und den öffentlichen JSON-Endpoint. Anonyme Zugriffe auf die
+Admin-Endpunkte müssen abgewiesen werden. Container und zugehörige Volumes
+werden anschließend entfernt.
 
 ## Lizenz
 
